@@ -10,7 +10,7 @@ SELECT
     t.status,
     COUNT(t.id)   AS ticket_count
 FROM tickets t
-JOIN clients c ON t.client_id = c.id
+JOIN clients c ON t.client_id::uuid = c.id
 GROUP BY c.id, c.name, t.status
 ORDER BY c.name, t.status;
 
@@ -22,7 +22,7 @@ SELECT
     c.name      AS client_name,
     COUNT(t.id) AS high_priority_tickets
 FROM tickets t
-JOIN clients c ON t.client_id = c.id
+JOIN clients c ON t.client_id::uuid = c.id
 WHERE t.priority IN ('HIGH', 'CRITICAL')
 GROUP BY c.id, c.name
 ORDER BY high_priority_tickets DESC
@@ -47,14 +47,23 @@ ORDER BY t.updated_at ASC;
 -- ============================================================
 
 -- 4. Usuario con mayor cantidad de tickets resueltos durante el último mes
+-- Requiere: CREATE EXTENSION IF NOT EXISTS dblink;  (ejecutar una vez en clientsupport_tickets)
 SELECT
     t.assigned_to                AS user_id,
+    u.name                       AS user_name,
     COUNT(t.id)                  AS resolved_count
 FROM tickets t
+JOIN (
+    SELECT id, name
+    FROM dblink(
+        'host=localhost port=5433 dbname=clientsupport_users user=postgres password=postgres',
+        'SELECT id::text, name FROM users'
+    ) AS d(id text, name text)
+) u ON t.assigned_to::text = u.id
 WHERE t.status = 'RESOLVED'
   AND t.resolved_at >= NOW() - INTERVAL '1 month'
   AND t.assigned_to IS NOT NULL
-GROUP BY t.assigned_to
+GROUP BY t.assigned_to, u.name
 ORDER BY resolved_count DESC
 LIMIT 1;
 
@@ -83,13 +92,22 @@ ORDER BY
 -- ============================================================
 
 -- 6. Cantidad de tickets abiertos por agente (usuario asignado)
+-- Requiere: CREATE EXTENSION IF NOT EXISTS dblink;  (ya ejecutado por el seed)
 SELECT
     t.assigned_to            AS agent_id,
+    u.name                   AS agent_name,
     COUNT(t.id)              AS open_tickets
 FROM tickets t
+JOIN (
+    SELECT id, name
+    FROM dblink(
+        'host=localhost port=5433 dbname=clientsupport_users user=postgres password=postgres',
+        'SELECT id::text, name FROM users'
+    ) AS d(id text, name text)
+) u ON t.assigned_to::text = u.id
 WHERE t.status = 'OPEN'
   AND t.assigned_to IS NOT NULL
-GROUP BY t.assigned_to
+GROUP BY t.assigned_to, u.name
 ORDER BY open_tickets DESC;
 
 -- ============================================================

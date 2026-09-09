@@ -74,6 +74,8 @@ export class TicketController {
     try {
       const { assignedTo } = req.body as { assignedTo?: string };
       if (!assignedTo) throw new AppError('assignedTo is required', 400, 'VALIDATION_ERROR');
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(assignedTo)) throw new AppError('assignedTo must be a valid UUID', 400, 'VALIDATION_ERROR');
       const result = await this.assignTicketUseCase.execute(req.params.id, assignedTo);
       res.status(200).json({ success: true, data: result });
     } catch (err) { next(err); }
